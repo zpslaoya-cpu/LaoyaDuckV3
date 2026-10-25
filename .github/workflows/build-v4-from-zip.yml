@@ -1,62 +1,62 @@
-name: 打造老鸭V4APK
-在……之上:
-workflow_dispatch:
-推:
-路径:
+name: Build LaoYa Duck V4 APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
       - '.github/workflows/build-v4-from-zip.yml'
       - '*V4*.zip'
-权限:
-内容: 读
-工作:
-建立:
-run-on: Ubuntu-最新
-timeout-minutes: 35
-步骤:
-      - 姓名: 签出存储库
-uses: 操作/结帐@v4
-      - 姓名: 解压缩V4源归档文件
-壳: 猛击
-跑: |
-set-euo管道故障
-mapfile-d"存档文件<<(查找。-最大深度1-类型f-名称'*V4*.zip'-print0)
-如果["${#存档文件[@]}"-ne1]；则
-回声"仅需一个V4ZIP；找到${#个存档[@]}">&2
-出口1
-Fi
-解压缩-q"${档案[0]}”
-test-f老鸭DuckV4/scripts/build_original_patch。嘘
-试销鸭V4/original/base.apk
-      - 姓名: 设置Java
-uses: 操作/设置-Java@v4
-和……一起:
-分布: temurin
-java版: '17'
-      - 姓名: 安装Android SDK
-uses: android-actions/setup-android@v3
-      - 姓名: 安装Gradle
-        uses: gradle/操作/设置-gradle@v4
-和……一起:
-gradle-version: '8.10.2'
-      - 姓名: 安装Android平台和构建工具
-跑: sdkmanager'平台；android-35' 'build-tools；35.0.0'
-      - 姓名: 运行源测试
-工作目录: 老鸭V4
-跑: |
-python3脚本/verify_source.py
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Unpack V4 source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' archives < <(find . -maxdepth 1 -type f -name '*V4*.zip' -print0)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "Expected exactly one V4 ZIP; found ${#archives[@]}" >&2
+            exit 1
+          fi
+          unzip -q "${archives[0]}"
+          test -f LaoyaDuckV4/scripts/build_original_patch.sh
+          test -s LaoyaDuckV4/original/base.apk
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Install Android platform and build tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Run source tests
+        working-directory: LaoyaDuckV4
+        run: |
+          python3 scripts/verify_source.py
           node docs/test_parser.js
-节点docs/test_original_bridge.js
-      - 姓名: 构建并签署安装包
-工作目录: 老鸭V4
-env:
-Android_KEYSTORE_BASE64: ${{secrets.android_KEYSTORE_BASE64}}
-Android_KEYSTORE_PASSWORD: ${{secrets.android_KEYSTORE_PASSWORD}}
-Android_KEY_ALIAS: ${{secrets.android_KEY_ALIAS}}
+          node docs/test_original_bridge.js
+      - name: Build and sign APK
+        working-directory: LaoyaDuckV4
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-跑: bash脚本/build_original_patch.sh
-      - 姓名: 发布安装包
-uses: 操作/上载工件@v4
-和……一起:
-姓名: LaoYaDuckV4-APK
-路径: 老鸭V4/rebuild/老鸭版-快手抓鸭子V4.apk
-if-no-file-found: 误差
+        run: bash scripts/build_original_patch.sh
+      - name: Publish APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaoYaDuckV4-APK
+          path: LaoyaDuckV4/rebuilt/老鸭版-快手抓鸭子V4.apk
+          if-no-files-found: error
           retention-days: 10
