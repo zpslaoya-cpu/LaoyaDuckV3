@@ -14,18 +14,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Unpack V4 source archive
+      - name: Unpack and locate V4 Android source
         shell: bash
         run: |
           set -euo pipefail
           mapfile -d '' archives < <(find . -maxdepth 1 -type f -name '*V4*.zip' -print0)
           if [ "${#archives[@]}" -ne 1 ]; then
-            echo "Expected exactly one V4 ZIP; found ${#archives[@]}" >&2
+            echo "ERROR: Expected exactly one V4 ZIP; found ${#archives[@]}" >&2
             exit 1
           fi
-          unzip -q "${archives[0]}"
-          test -f LaoyaDuckV4/scripts/build_original_patch.sh
+          mkdir -p .v4-extracted
+          unzip -q "${archives[0]}" -d .v4-extracted
+          mapfile -d '' build_scripts < <(find .v4-extracted -type f -path '*/scripts/build_original_patch.sh' -print0)
+          if [ "${#build_scripts[@]}" -ne 1 ]; then
+            echo "ERROR: Expected one V4 build script; found ${#build_scripts[@]}" >&2
+            find .v4-extracted -maxdepth 5 -type f | head -60
+            exit 1
+          fi
+          project_dir="$(dirname "$(dirname "${build_scripts[0]}")")"
+          if [ ! -s "$project_dir/original/base.apk" ]; then
+            echo "ERROR: Original APK missing in $project_dir" >&2
+            exit 1
+          fi
+          mv "$project_dir" LaoyaDuckV4
           test -s LaoyaDuckV4/original/base.apk
+          echo "V4 project found: LaoyaDuckV4"
+          ls -lh LaoyaDuckV4/original/base.apk
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
